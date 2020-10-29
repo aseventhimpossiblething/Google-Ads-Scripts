@@ -1,0 +1,86 @@
+function main() {
+  
+  
+   
+  var allowedOverdeliveryPercentage = 0.2; // set percentage as decimal, i.e. 20% should be set as 0.2
+  //var labelName = "paused by overdelivery checker script";
+   
+  //AdsApp.createLabel(labelName, "Generates Label to identify script paused ads");
+
+
+  //CAMPAIGN_CRITERIA_REPORT
+  query="SELECT CampaignStatus, ServingStatus, CampaignName FROM CAMPAIGN_PERFORMANCE_REPORT WHERE Cost > 0 DURING TODAY "
+  report=AdsApp.report(query)
+  
+  
+  /*
+  var report = AdsApp.report(
+    "SELECT AdGroupId, Query, Ctr, Cost, Impressions " +
+    "FROM   SEARCH_QUERY_PERFORMANCE_REPORT " +
+    "WHERE  Impressions < 10 " +
+    "DURING LAST_30_DAYS");*/
+  
+  reportIterator=report.rows()
+  while (reportIterator.hasNext()){
+        row=reportIterator.next();
+        CampaignName=row.CampaignName
+        Status=row.CampaignStatus;
+        ServingStatus=row.ServingStatus;
+        Logger.log("CampaignName "+CampaignName+", Overall Status: "+Status+" ServingStatus:"+ServingStatus)}
+        
+  
+  
+  //row=report.rows().next()
+  //Logger.log(row)
+  
+  
+  
+  
+  var campaigns = AdsApp.campaigns()
+   //.withCondition("Status = ENABLED")
+   .withCondition("Cost > 0")
+   .forDateRange("TODAY");
+   
+  var campaignIterator = campaigns.get();
+  
+  while (campaignIterator.hasNext()) {
+    
+    var campaign = campaignIterator.next();
+    var campaignName = campaign.getName();
+    var budgetAmount = campaign.getBudget().getAmount();
+    var costToday = campaign.getStatsFor("TODAY").getCost();
+     
+    
+/*identify Campaigns to be included by element of campaign name each var represents a campaign elements are case sensitive*/   
+var outercamp=campaignName;  
+var camp1="Consolidated_TX>Mixed>City";
+var camp2="None-None";
+var camp3="None-None";
+var camp4="None-None";
+var camp5="None-None";
+var camp6="None-None"; 
+var camp7="None-None";      
+    
+var includedCamps=[camp1,camp2,camp3,camp4,camp5,camp6,camp7];
+   
+  if(outercamp.indexOf(includedCamps[0])>-1||outercamp.indexOf(includedCamps[1])>-1||outercamp.indexOf(includedCamps[2])>-1||outercamp.indexOf(includedCamps[3])>-1)
+     {Logger.log("Encountered included Campaign $"+budgetAmount);
+      if(costToday >= budgetAmount)
+      {Logger.log("Exceeded Budget");
+       //MailApp.sendEmail("thebdxppc@gmail.com","Alert BDX-PPC Budget Monitor Script "+ camp1,camp1+" has met or exceeded its Budget of $"+budgetAmount+" Total spend at this point is $"+costToday);
+       //MailApp.sendEmail("Jleonardo@theBDX.com","Alert Jleonardo@theBDX.com Budget Monitor Script "+ camp1,camp1+" has met or exceeded its Budget of $"+budgetAmount+" Total spend at this point is $"+costToday);
+       //MailApp.sendEmail("AHwang@theBDX.com.com","Alert AHwang@theBDX.com Budget Monitor Script "+ camp1,camp1+" has met or exceeded its Budget of $"+budgetAmount+" Total spend at this point is $"+costToday);
+       /*MailApp.sendEmail("Mcherisol@theBDX.com","Alert MCHerisol@theBDX.com Budget Monitor Script "+ camp1,camp1+" has met or exceeded its Budget of $"+budgetAmount+" Total spend at this point is $"+costToday)*/}
+      else{Logger.log("attempting to evaluate");}
+       /*MailApp.sendEmail("Mcherisol@theBDX.com","Budget Monitor Script "+ camp1,camp1+" Test of monitoring script current budget  $"+budgetAmount+" do not respond-test Total spend at this point is $"+costToday)*/}
+
+ 
+    
+    
+  }
+ 
+       
+}
+
+
+
