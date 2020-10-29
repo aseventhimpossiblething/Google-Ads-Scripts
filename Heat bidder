@@ -1,0 +1,262 @@
+/**
+*
+* Advanced ad scheduling
+*
+* This script will apply ad schedules and set the bid modifier for the schedule
+* at each hour according to a multiplier timetable in a Google sheet.
+*
+* Version: 1.0
+* brainlabsdigital.com
+*
+**/
+
+
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+  //Options
+  
+  //Be sure to set firstRun to false after running the script for the first time
+  var firstRun = false;
+   //When you want to stop running the ad scheduling for good, set
+  //the lastRun variable to true to remove all ad schedules.
+  var lastRun = false;
+  
+  //The google sheet to use
+  //The default value is the example sheet linked to in the article
+  var spreadsheetUrl = "https://docs.google.com/spreadsheets/d/1GuZ7yVx1DxazFxUZbwNwj_YzDB98K6zEMP3K95cY_0s/edit#gid=1381756323";
+  var spreadsheetname = "Eastern Actual"
+  //Optional parameters for filtering campaign names. 
+  //Leave blank to use filters. The matching is case insensitive.
+  var excludeCampaignNameContains = "Test"; //Select which campaigns to exclude. Leave blank to not exclude any campaigns.
+  var includeCampaignNameContains = ">SB>"; //Select which campaigns to include. Leave blank to include all campaigns.
+  var includeLabel = "Eastern";
+ 
+  var scheduleRange = "B2:H25";
+
+
+
+
+
+
+
+
+ 
+  
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+  
+  //Retrieving up hourly data
+  
+  var accountName = AdWordsApp.currentAccount().getName();
+  var spreadsheet = SpreadsheetApp.openByUrl(spreadsheetUrl);
+  var sheet = spreadsheet.getSheetByName(spreadsheetname);
+  var label="LabelNames CONTAINS_ANY"+ "["+includeLabel+"]"
+
+
+
+
+
+
+
+
+function main() {
+
+  var data = sheet.getRange(scheduleRange).getValues();
+  
+  var timeZone = AdWordsApp.currentAccount().getTimeZone();
+  var date = new Date();
+  var dayOfWeek = parseInt(Utilities.formatDate(date, timeZone, "uu")) - 1;
+  var hour = parseInt(Utilities.formatDate(date, timeZone, "HH"));
+  
+  //This hour's bid multiplier.
+  var thisHourMultiplier = data[hour][dayOfWeek];
+  var lastHourCell = "I2";
+  sheet.getRange(lastHourCell).setValue(thisHourMultiplier);
+  
+  //Initialise for use later.
+  var weekDays = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
+  var adScheduleCodes = [];
+  
+  //Dummy name to exclude
+  if(excludeCampaignNameContains === ""){
+    excludeCampaignNameContains += "#@%" + date + "~};";
+  }
+  
+  var campaignIds = [];
+  
+  //Pull a list of all relevant campaign IDs in the account.
+  var campaignIterator = AdWordsApp.campaigns()
+  .withCondition('Name DOES_NOT_CONTAIN_IGNORE_CASE "' + excludeCampaignNameContains + '"')
+  .withCondition('Name CONTAINS_IGNORE_CASE "' + includeCampaignNameContains + '"')
+  .withCondition("Status=ENABLED")
+  .withCondition(label)
+  .get();
+   var count=0
+  while(campaignIterator.hasNext()){
+    var campaign = campaignIterator.next();
+    var campaignId = campaign.getId();
+    campaignIds.push(campaignId);
+    count++
+    Logger.log(count+" ; "+campaign.getName())
+  }
+  
+  //Return if there are no campaigns.
+  if(campaignIds.length === 0){
+    Logger.log("There are no campaigns matching your criteria.");
+    return;
+  }
+  
+  //Remove all ad scheduling for the last run.
+  if(lastRun){
+    RemoveAdSchedules(campaignIds);
+    return;
+  }
+  
+  //Remove all existing ad scheduling and add new schedules for the first run.
+  if(firstRun){
+    RemoveAdSchedules(campaignIds);
+    AddAdSchedules(campaignIds, weekDays);
+	Logger.log("Set the firstRun variable to false");
+  }
+  
+  //Populate the adScheduleCodes array with the ad schedule ID corresponding to the weekDays array. 
+  var campaignIterator = AdWordsApp.campaigns()
+  .withIds(campaignIds)
+  .withLimit(1)
+  .get();
+  while(campaignIterator.hasNext()){
+    var campaign = campaignIterator.next();
+    var adSchedules = campaign.targeting().adSchedules().get();
+	if(adSchedules.totalNumEntities() === 0) {
+      Logger.log("Some campaigns do not have ad scheduling, please re-do the first run");
+      return;
+    }
+    while(adSchedules.hasNext()){
+      var adSchedule = adSchedules.next();
+      var adScheduleDay = adSchedule.getDayOfWeek();
+      var adScheduleId = adSchedule.getId();
+      adScheduleCodes[weekDays.indexOf(adScheduleDay)] = adScheduleId;
+    }
+  }
+  
+  var adScheduleCode = adScheduleCodes[dayOfWeek];
+  
+  //Apply the ad schedule bid modifier
+  ModifyAdSchedule(campaignIds, adScheduleCode, thisHourMultiplier);
+  
+  //Set yesterday's ad schedule to a 0% bid modifier
+  if(hour === 1){
+    var yesterdayIndex = dayOfWeek - 1;
+    if(yesterdayIndex === -1 ) yesterdayIndex = 6;
+    var yesterdayAdScheduleCode = adScheduleCodes[yesterdayIndex];
+    ModifyAdSchedule(campaignIds, yesterdayAdScheduleCode, 1);
+  }
+  
+}
+
+/**
+ * Function to add ad schedules for all campaigns in the account. The scheduling will be 
+ * added as a whole-day period for every day specified in the passed parameter array and will
+ * be added with a bid modifier of 0%.
+ *
+ * @param array days the array of days for which to add ad scheduling
+ * @return void
+ */
+function AddAdSchedules(campaignIds, days){
+  
+  var campaignIterator = AdWordsApp.campaigns()
+  .withIds(campaignIds)
+  .get();
+  while(campaignIterator.hasNext()){
+    var campaign = campaignIterator.next();
+    for(var i = 0; i < days.length; i++){
+      campaign.addAdSchedule({
+        dayOfWeek: days[i],
+        startHour: 0,
+        startMinute: 0,
+        endHour: 24,
+        endMinute: 0,
+        bidModifier: 1
+      });
+    }
+  }
+}
+
+/**
+ * Function to remove all ad schedules from all campaigns refernced in the passed array.
+ *
+ * @param array campaignIds array of campaign IDs to remove ad scheduling from
+ * @return void
+ */
+function RemoveAdSchedules(campaignIds) {
+  
+  var adScheduleIds = [];
+  
+  var report = AdWordsApp.report(
+    'SELECT CampaignId, Id ' + 
+    'FROM CAMPAIGN_AD_SCHEDULE_TARGET_REPORT ' +
+    'WHERE CampaignId IN ["' + campaignIds.join('","')  + '"] ' +
+    'DURING YESTERDAY');
+  
+  var rows = report.rows();
+  while(rows.hasNext()){
+    var row = rows.next();
+    var adScheduleId = row['Id'];
+    var campaignId = row['CampaignId'];
+    adScheduleIds.push([campaignId,adScheduleId]);
+  }
+  
+  var chunkedArray = [];
+  var chunkSize = 50000;
+  
+  for(var i = 0; i < adScheduleIds.length; i += chunkSize){
+    chunkedArray.push(adScheduleIds.slice(i, i + chunkSize));
+    
+    
+  }
+  
+  for(var i = 0; i < chunkedArray.length; i++){
+    
+    var adScheduleArray = [];
+    
+    var adScheduleIterator = AdWordsApp.targeting()
+    .adSchedules()
+    .withIds(chunkedArray[i])
+    .get();
+    while (adScheduleIterator.hasNext()) {
+      var adSchedule = adScheduleIterator.next();
+      adScheduleArray.push(adSchedule);
+    }
+    
+    for(var j = 0; j < adScheduleArray.length; j++){
+      adScheduleArray[j].remove();
+    }
+  }
+  
+}
+
+/**
+ * Function to set the bid modifier for a specific ad schedule period for a set of campaigns.
+ *
+ * @param array campaignIds the array of campaign IDs to have thier ad schedules modified
+ * @param int adScheduleCode the ID of the adschedule to be modified
+ * @param float bidModifier the multiplicative bid modifier
+ * @return void
+ */
+function ModifyAdSchedule(campaignIds, adScheduleCode, bidModifier){
+  
+  var adScheduleIds = [];
+  
+  for(var i = 0; i < campaignIds.length; i++){
+    adScheduleIds.push([campaignIds[i],adScheduleCode]);
+  }
+  
+  var adScheduleIterator = AdWordsApp.targeting()
+  .adSchedules()
+  .withIds(adScheduleIds)
+  .get();
+  while (adScheduleIterator.hasNext()) {
+    var adSchedule = adScheduleIterator.next();
+    adSchedule.setBidModifier(bidModifier);
+  }
+}
