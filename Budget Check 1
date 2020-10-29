@@ -1,0 +1,58 @@
+function main() {
+  
+  
+   
+  var allowedOverdeliveryPercentage = 0.2; // set percentage as decimal, i.e. 20% should be set as 0.2
+  var labelName = "paused by overdelivery checker script";
+   
+  AdsApp.createLabel(labelName, "Generates Label to identify script paused ads");
+
+
+  var campaigns = AdsApp.campaigns()
+   .withCondition("Status = ENABLED")
+   .withCondition("Cost > 0")
+   .forDateRange("TODAY");
+   
+  var campaignIterator = campaigns.get();
+   
+  while (campaignIterator.hasNext()) {
+    var campaign = campaignIterator.next();
+    var campaignName = campaign.getName();
+    var budgetAmount = campaign.getBudget().getAmount();
+    var costToday = campaign.getStatsFor("TODAY").getCost();
+     
+  
+    
+/*identify Campaigns to be skipped by element of campaign name each var represents a campaign elements are case sensitive*/   
+var outercamp=campaignName;  
+var camp1="CA Consolidation_Import";
+var camp2="FL Consolidation_Import";
+var camp3="TX Consolidation_Import";
+var camp4="RLSA Ad Copy A";
+var camp5="RLSA Ad Copy B";
+var camp6="RLSA Ad Copy C"; 
+var camp7="Holiday Budget Decrease: Excluded from script";      
+    
+var excludedCamps=[camp1,camp2,camp3,camp4,camp5,camp6,camp7];
+
+if(outercamp.indexOf(excludedCamps[0])>-1||outercamp.indexOf(excludedCamps[1])>-1||outercamp.indexOf(excludedCamps[2])>-1||outercamp.indexOf(excludedCamps[3])>-1){Logger.log("Encountered Excepted Campaign ")}else{ if(costToday > budgetAmount * (1 + allowedOverdeliveryPercentage)) {
+      Logger.log(campaignName +" Budget was set at "+budgetAmount+ " it has spent " + costToday + " which is more than allowed. Threshold is ");
+      campaign.applyLabel(labelName);
+      campaign.pause();
+    } else {
+      Logger.log(campaignName +" Budget was set at "+budgetAmount+ " Campaign has spent " + costToday + " Threshold for pause is "+budgetAmount*(1+(1*allowedOverdeliveryPercentage)))
+   
+
+}  
+
+ 
+}
+  
+ 
+    
+  }
+       
+}
+
+
+
