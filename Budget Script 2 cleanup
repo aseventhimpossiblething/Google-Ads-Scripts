@@ -1,0 +1,14 @@
+function main() {
+//looke for all campaings that are paused by Ad checker script-reactivates them and removes labels  
+var camp = AdsApp.campaigns().withCondition("LabelNames CONTAINS_ANY ['paused by overdelivery checker script']")
+var campwget=camp.get()
+var camptnext=campwget.next()  
+while(campwget.hasNext()){
+var turniton=campwget.next()
+turniton.enable();
+turniton.removeLabel('paused by overdelivery checker script')
+function checkenabled(x){if(x="true"){return "Active"}else{return "Not Active"}}
+Logger.log(turniton.getName()+" "+checkenabled(turniton));
+
+}
+}
