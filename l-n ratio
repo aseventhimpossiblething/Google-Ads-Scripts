@@ -1,0 +1,114 @@
+/* the overall funtion of this script is to generate a Lin-Rodnizsky ratio. 
+This is a ratio that quantifies account health. 
+Base formula is L/N ratio = campaignCPA/QueryCPA 
+score of 1-1.5 is considered to low and indicates missed oppotunity for conversions
+score of 1.5-2 is considered an ideal balance of profitably and persuit of new conversions
+score of > 2 is considered to aggresive and is indicative of wasted spend on non converting keywords
+*/
+
+var spreadsheetURL="https://docs.google.com/spreadsheets/d/1iUChJkEXh70H43RvyC3TtckcwM4f_yK2x3LG9NDodJM/edit#gid=0"
+
+//the following are the initial data pulls to be compared. 
+var Query_Performance_Pull_Report = AdsApp.report("SELECT Cost, Conversions, CampaignName " +
+       "FROM SEARCH_QUERY_PERFORMANCE_REPORT " + "WHERE Conversions > 0 "+
+       "DURING YESTERDAY ");
+var Queries = Query_Performance_Pull_Report.rows()
+var Account_Metrics_Pull_Report =  AdsApp.report("SELECT Cost, Conversions, CampaignName " +
+       "FROM CAMPAIGN_PERFORMANCE_REPORT " + "DURING YESTERDAY ");  
+var Account_Report = Account_Metrics_Pull_Report.rows()
+
+//the following are arrays that will store CPA values of the two pulls to be averaged
+var QueryCost=[];
+var QueryConversions=[];
+var QueryCPA=[];
+
+var AccountConversions=[];
+var AccountCost=[];
+var AccountCPA=[];
+//stores overall averages to be compared
+var Queryavg;
+var Accountavg;
+
+var countOfCost=[];
+var totalCountOfCost;
+
+//these counters are temporary
+var query_counter=0;
+var campaign_counter=0;
+
+//the below are locally scoped variables inside roller function 
+var tbr;//indicates parameter
+var rollercounter;//
+
+
+
+
+function main(){
+ // Query Calculations 
+var rollingQueryCPA;  
+while(Queries.hasNext()){rollingQuery=Queries.next();
+var floatCost=parseFloat(rollingQuery.Cost);
+var floatConversions=parseFloat(rollingQuery.Conversions);                         
+QueryCost.push(floatCost)
+QueryConversions.push(floatConversions)}                  
+                       
+
+var QueryCostSum=0;  
+for(e in QueryCost){QueryCostSum=QueryCostSum+QueryCost[e]}
+var QueryConversonSum=0;
+for(f in QueryConversions){QueryConversonSum=QueryConversonSum+QueryConversions[f]}
+var QueryCPAis=QueryCostSum/QueryConversonSum
+
+//Account Calculations
+var rollingAccntCPA;  
+while(Account_Report.hasNext()){var rollingAccnt=Account_Report.next();
+var accountFloatCost=parseFloat(rollingAccnt.Cost)
+var accountFloatConversion=parseFloat(rollingAccnt.Conversions)
+AccountCost.push(accountFloatCost)
+AccountConversions.push(accountFloatConversion); }
+
+AccntCostSum=0;
+for(ab in AccountCost){AccntCostSum=AccntCostSum+AccountCost[ab]; }  
+AccountConversionSum=0;
+for(ba in AccountConversions){AccountConversionSum=AccountConversionSum+AccountConversions[ba];}  
+var AccntCPAis=AccntCostSum/AccountConversionSum
+
+
+var LN_Ratio=AccntCPAis/QueryCPAis                             
+//Logger.log(typeof rollingAccnt.Cost+" first") 
+Logger.log(AccntCPAis+" first") 
+Logger.log(QueryCPAis+" first") 
+Logger.log(LN_Ratio+" first")   
+ 
+ 
+
+                    
+
+
+
+ 
+
+ 
+  
+var Spreadsheet=SpreadsheetApp.openByUrl(spreadsheetURL)
+var lastrow=Spreadsheet.getActiveSheet().getLastRow()
+var colA="A"
+var colB="B"
+var colC="C"
+var colD="D"
+var row=lastrow+1
+colArow=colA+row
+colBrow=colB+row 
+colCrow=colC+row
+colDrow=colD+row  
+Spreadsheet.setActiveSelection(colArow).setValue(Date())  
+Spreadsheet.setActiveSelection(colBrow).setValue(LN_Ratio)
+Spreadsheet.setActiveSelection(colCrow).setValue(AccntCPAis)
+Spreadsheet.setActiveSelection(colDrow).setValue(QueryCPAis)   
+
+  
+
+  
+  
+}   
+                        
