@@ -1,0 +1,266 @@
+var ReportURl="https://docs.google.com/spreadsheets/d/12Eadgy-M6iZWssglIqclr_M8ESYSxai8NqAI_QEb2-s/edit#gid=1486574419";
+var accnt= "City";
+
+//Pulls Keywords based on number of conversions and spend 
+//Bid up 20% if CPA<$15 and clicks > 3 , 15% if CPA between $15 - $20 and clicks > 3, 10% if between $20-$25, 5% between $25-$30
+var timewindow="LAST_7_DAYS";//When setting Date Remember to set Cost $5 per selected week on line 99
+var secondtimewindow= "LAST_7_DAYS";
+var Exluded=[];
+
+var columntopformatA=timewindow;
+var columntopformatB=" ";
+//SETTINGS: THESE ARE THE THRESHHOLDS TO RAISE BIDS
+var Thrsh1=.2   //keywords below $15 CPL will be adjusted up by this amnt
+var Thrsh2=.15  //keywords between $15-$20 CPL will be adjusted up by this amnt
+var Thrsh3=.10  //keywords between $20-$25 CPL will be adjusted up by this amnt
+var Thrsh4=.05  //keywords between $25-$30 $15 CPL will be adjusted up by this amnt
+
+//The next section controls the variables that lower bids  30% if CPA > $100 , 20% if $65-$100, 15% if 45-65, 10% 35-45, 5% if 30-35
+var Thrsh5=.3   //keywords above $100 CPL will be adjusted by this amnt
+var Thrsh6=.2  //keywords between $65-$100 CPL will be adjusted by this amnt
+var Thrsh7=.15  //keywords between $45-$65 CPL will be adjusted by this amnt
+var Thrsh8=.05  //keywords between $35-$45 CPL will be adjusted by this amnt
+
+//This section controls the thresholds for the bid down of non converting keywords
+var Thrsh9=.4   //keywords above $200 Cost will be adjusted by this amnt
+var Thrsh10=.3  //keywords between $100-$200 CostCPL will be adjusted by this amnt
+var Thrsh11=.25  //keywords between $70-$100 Cost will be adjusted by this amnt
+var Thrsh12=.20  //keywords between $40-$70 Cost will be adjusted by this amnt
+var Thrsh13=.15  //keywords between $20-$40 Cost will be adjusted by this amnt
+var Thrsh14=.1 //keywords between base amnt and $20 Cost will be adjusted by this amnt
+
+//Below arrays store collected values from keyword iterators
+
+var NONKeyword=[columntopformatA,"Keyword"];
+var NONCampaign=[columntopformatB,"Campaign"];
+var NONAdgroup=[columntopformatB,"Adgroup"];
+var NONoriginalCPC=[columntopformatB,"Previous_Bid"];
+var NONnewCPC=[columntopformatB,"New_Bid"];
+var NONavgCPC=[columntopformatB,"AvgCPC"];
+var NONCost=[columntopformatB,"Cost"];
+var NONClicks=[columntopformatB,"Clicks"];
+var NONConversions=[columntopformatB,"Conversions"];
+var NONImpressions=[columntopformatB,"Impressions"];
+var NONfirstpagebid=[columntopformatB,"firstpagebid"];
+var NONBiddingStrategytype=[columntopformatB,"Bidding Strategy Type"];
+var NONMatchType=[columntopformatB,"MatchType"];
+var NONcpa=[columntopformatB,"CPA"];
+var NONChangeCPC=[columntopformatB,"% Change CPC"]
+
+//Below are arrays which should emulate existing variables with no strings, they are used for destructive analysis
+var Ccost=[];
+var AavgCPC=[];
+
+                             
+//this function inserts the data into a google sheet defined below. It is defined here and called at the bottom of the script 
+function sheetinsert(arr,col){ //this function inserts the data into a google sheet defined below. It is defined here and callled at the bottom of the script 
+for(x=0;x<arr.length;x++){ 
+var n=x+1
+SpreadsheetApp.openByUrl(ReportURl).getActiveSheet().getRange(col+n).setValue(arr[x])}}
+                             
+ 
+function main(){
+//shared push index
+Push_index=function(){
+NONKeyword.push(nextword.getText());
+NONCampaign.push(nextword.getCampaign().getName());
+NONAdgroup.push(nextword.getAdGroup().getName());
+NONoriginalCPC.push(SetBid.getCpc());
+NONavgCPC.push(averageCPC);
+NONCost.push(Cost);
+NONClicks.push(Clicks);
+NONConversions.push(Conversions);
+NONImpressions.push(Impressions);
+NONfirstpagebid.push(FirstPageCPC); 
+NONBiddingStrategytype.push(bidstratype);
+Ccost.push(Cost);
+AavgCPC.push(averageCPC);
+NONMatchType.push(Matchtype); 
+ 
+  
+}
+//This is a second push index for the nonconverting keywords pushes onto the same array set as converters but called by different functions  
+Push_index2=function(){
+NONKeyword.push(HereWeGoAgain.getText());
+NONCampaign.push(HereWeGoAgain.getCampaign().getName());
+NONAdgroup.push(HereWeGoAgain.getAdGroup().getName());
+NONoriginalCPC.push(HWGACPC);
+NONavgCPC.push(HWGAaverageCPC);
+NONCost.push(HWGACost);
+NONClicks.push(HWGAClicks);
+NONConversions.push(HWGAConversions);
+NONImpressions.push(HWGAImpressions);
+NONfirstpagebid.push(HWGAFirstPageCPC); 
+NONBiddingStrategytype.push(HWGAbidstratype);
+NONMatchType.push(Matchtype);
+
+  
+}  
+ 
+
+  
+
+//Below is the primary keyword selector                               
+var keywordchoice=AdsApp.keywords().forDateRange(timewindow).withCondition("Conversions>0").withCondition("Cost>=5")
+var secondkeywordchoice=AdsApp.keywords().forDateRange(secondtimewindow).withCondition("Conversions<1").withCondition("Cost>=5")
+var keywordisolator=keywordchoice.get()
+var secondkeywordisolator=secondkeywordchoice.get()
+
+ //This function is a push inserter componant for the noconverting keywords 
+ function nonconvinserterdown2(Thrsh){
+ NONcpa.push("Conversions<1");  
+ NONChangeCPC.push(Thrsh);  
+ NONnewCPC.push(HWGACPC-(HWGACPC*Thrsh));
+ Push_index2()
+ //HWGASetBid.setCpc(CPC-(CPC*Thrsh));  
+ }
+  
+  //This function is a push inserter componant that supports cheap nonconverting keywords 
+ function nonconvinserterdown(Thrsh){
+ NONcpa.push("Conversions<1");  
+ NONChangeCPC.push(Thrsh/HWGACPC);  
+ NONnewCPC.push(Thrsh);
+ Push_index2()
+ //HWGASetBid.setCpc(Thrsh);  
+ }
+ 
+   
+    function commonline(Thrsh)//This function raises bids on keywords according to parameters defined in settings variables for converting keywords
+  {if(averageCPC > CPC && CPC+(CPC*Thrsh)<= CPC+(CPC*0.5)){
+    NONcpa.push(CPA);
+    NONChangeCPC.push(Thrsh+1);
+    Push_index()   
+    NONnewCPC.push(CPC+(CPC*Thrsh));
+     //SetBid.setCpc(CPC+(CPC*Thrsh)); 
+   //nextword.applyLabel(LABEL); 
+  } }
+   
+   function commonline2(Thrsh)//This function lowers bids on keywords according to parameters defined in settings variables for converting keywords
+  {
+   NONcpa.push(CPA); 
+   NONChangeCPC.push(Thrsh); 
+   Push_index()
+   NONnewCPC.push(CPC-(CPC*Thrsh));
+   //SetBid.setCpc(CPC-(CPC*Thrsh)); 
+   //nextword.applyLabel(LABEL);
+     }       
+  
+  
+  function convtreat(){
+     //this is the section that raises bids 
+     if(CPA<15){commonline(Thrsh1);}
+     if(CPA>15&&CPA<20){commonline(Thrsh2);}                    
+     if(CPA>20&&CPA<25){commonline(Thrsh3);}        
+     if(CPA>25&&CPA<30){commonline(Thrsh4);}      
+                 
+     //this section lowers bids
+    if(CPA>100){commonline2(Thrsh5);}                           
+    if(CPA>65&&CPA<100){commonline2(Thrsh6);}
+    if(CPA>45&&CPA<65){commonline2(Thrsh7);}
+    if(CPA>35&&CPA<45){commonline2(Thrsh8);}
+     }
+  
+  
+ 
+    
+   
+  
+    //this creates avg of converting keyword spend
+   var sum=0;
+   var gva=0;	  	
+   AvgOfConv=function(){for(arri=0;arri<Ccost.length;arri++){sum+=Ccost[arri];} return sum/Ccost.length;}
+   AAavgCPC=function(){for(tay=0;tay<AavgCPC.length;tay++){gva+=AavgCPC[tay];} return gva/AavgCPC.length;}
+   
+ 
+  
+//this moves through keyword list and defines inital variables for keyword elemants to be used 
+while(keywordisolator.hasNext()){var nextword=keywordisolator.next();
+     var statsAdjudicator=nextword.getStatsFor(timewindow)
+     var Cost=statsAdjudicator.getCost()
+     var Clicks=statsAdjudicator.getClicks()
+     var Conversions=statsAdjudicator.getConversions()
+     var Impressions=statsAdjudicator.getImpressions()
+     var CPA=Cost/Conversions
+     var SetBid=nextword.bidding()
+     var CPC=SetBid.getCpc()
+     var averageCPC=statsAdjudicator.getAverageCpc()
+     var averageCPC2=nextword.getStatsFor(timewindow).getAverageCpc()
+     var FirstPageCPC=nextword.getFirstPageCpc()
+     var bidstratype=nextword.bidding().getStrategyType()
+     var Matchtype=nextword.getMatchType()
+     var CampaignName=nextword.getBaseCampaign().getName()
+   if(bidstratype== "MANUAL_CPC"&&Exluded.indexOf(CampaignName)==-1){if(Conversions>=1){convtreat() } } }
+  //This is the average cost of converting keywords and will be compared to nonconverting keywords
+  var Aggy=AvgOfConv()
+  var Aggy2=AAavgCPC()
+  
+  
+  
+  //function that bids down nonconverting keywords
+   function noncovtreat(){if(HWGACPC>HWGAaverageCPC){nonconvinserterdown(HWGAaverageCPC);}
+                          if(HWGACPC<HWGAaverageCPC){nonconvinserterdown2(Thrsh3);}}
+    
+  
+  //this is the second loop to deal with keywords with less than 1 conversion
+while(secondkeywordisolator.hasNext()){var HereWeGoAgain=secondkeywordisolator.next()
+     var HWGAstatsAdjudicator = HereWeGoAgain.getStatsFor(secondtimewindow)
+     var HWGACost = HWGAstatsAdjudicator.getCost()
+     var HWGAClicks = HWGAstatsAdjudicator.getClicks()
+     var HWGAConversions = HWGAstatsAdjudicator.getConversions()
+     var HWGAImpressions = HWGAstatsAdjudicator.getImpressions()
+     var HWGACPA = HWGACost/HWGAConversions
+     var HWGASetBid = HereWeGoAgain.bidding()
+     var HWGACPC = HWGASetBid.getCpc()
+     var HWGAaverageCPC = HWGAstatsAdjudicator.getAverageCpc()
+     var HWGAFirstPageCPC = HereWeGoAgain.getFirstPageCpc() 
+     var HWGAbidstratype = HWGASetBid.getStrategyType()
+     if(HWGACost>4&&HWGAbidstratype=="MANUAL_CPC"&&Exluded.indexOf(CampaignName)==-1){noncovtreat();} 
+                                      //else if(<){nonconvinsertersavior(.01)}
+                                      //else if(HWGACPC>HWGAFirstPageCPC){HWGASetBid.setCpc(HWGACPC-(HWGACPC*.2))}
+                     
+                      }             
+                                      
+   
+  
+
+
+SpreadsheetApp.openByUrl(ReportURl).getActiveSheet().clear()
+
+  
+
+sheetinsert(NONCampaign,"A");
+sheetinsert(NONAdgroup,"B");
+sheetinsert(NONKeyword,"C"); 
+sheetinsert(NONMatchType,"D");
+sheetinsert(NONnewCPC,"E");  
+sheetinsert(NONChangeCPC,"F"); 
+sheetinsert(NONcpa,"G"); 
+sheetinsert(NONoriginalCPC,"H");
+sheetinsert(NONavgCPC,"I");
+sheetinsert(NONCost,"J");
+sheetinsert(NONClicks,"K");
+sheetinsert(NONConversions,"L");
+sheetinsert(NONImpressions,"M");
+sheetinsert(NONBiddingStrategytype,"N");
+ 
+
+
+SpreadsheetApp.openByUrl(ReportURl).duplicateActiveSheet().setName(accnt+" "+Date())
+
+  
+
+}
+ 
+
+  
+  
+ 
+
+
+
+
+  
+
+
+ 
+ 
